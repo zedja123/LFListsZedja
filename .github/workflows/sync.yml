@@ -1,0 +1,61 @@
+name: Mirror Upstream
+
+on:
+  schedule:
+    - cron: "0 * * * *" # Every hour
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  mirror:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.SYNC_PAT }}
+          fetch-depth: 0
+
+      - name: Mirror upstream while preserving workflows
+        run: |
+          set -e
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git remote add upstream https://github.com/ProjectIgnis/LFLists.git || true
+          git fetch upstream
+
+          # Exit if we're already based on the latest upstream commit.
+          if git merge-base --is-ancestor upstream/master HEAD; then
+            echo "Already up to date with upstream."
+            exit 0
+          fi
+
+          # Save local workflows.
+          if [ -d ".github/workflows" ]; then
+            cp -a .github/workflows /tmp/
+          fi
+
+          # Mirror upstream.
+          git checkout master
+          git reset --hard upstream/master
+
+          # Restore local workflows.
+          if [ -d "/tmp/workflows" ]; then
+            rm -rf .github/workflows
+            mkdir -p .github
+            cp -a /tmp/workflows .github/
+          fi
+
+          git add .github/workflows
+
+          # Commit only if workflows differ.
+          if ! git diff --cached --quiet; then
+            git commit -m "Preserve local workflows"
+          fi
+
+          git push --force origin master
