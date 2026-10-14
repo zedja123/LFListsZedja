@@ -40,6 +40,16 @@ jobs:
             cp -a .github/workflows /tmp/
           fi
 
+          # Save local-only files (one path per line in .github/local-files.txt),
+          # e.g. lists that upstream does not have.
+          mkdir -p /tmp/local-files
+          if [ -f ".github/local-files.txt" ]; then
+            cp -a .github/local-files.txt /tmp/
+            while IFS= read -r f; do
+              if [ -n "$f" ] && [ -f "$f" ]; then cp -a --parents "$f" /tmp/local-files/; fi
+            done < .github/local-files.txt
+          fi
+
           # Mirror upstream.
           git checkout master
           git reset --hard upstream/master
@@ -51,11 +61,21 @@ jobs:
             cp -a /tmp/workflows .github/
           fi
 
+          # Restore local-only files.
+          if [ -f "/tmp/local-files.txt" ]; then
+            cp -a /tmp/local-files.txt .github/
+            cp -a /tmp/local-files/. .
+            git add .github/local-files.txt
+            while IFS= read -r f; do
+              if [ -n "$f" ] && [ -f "$f" ]; then git add "$f"; fi
+            done < .github/local-files.txt
+          fi
+
           git add .github/workflows
 
-          # Commit only if workflows differ.
+          # Commit only if workflows or local files differ.
           if ! git diff --cached --quiet; then
-            git commit -m "Preserve local workflows"
+            git commit -m "Preserve local workflows and files"
           fi
 
           git push --force origin master
