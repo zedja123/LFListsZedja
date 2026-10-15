@@ -1,1 +1,4 @@
 Genesys.lflist.conf
+Domain.lflist.conf
+tools/domain_gen.py
+tools/domain_ref.py
